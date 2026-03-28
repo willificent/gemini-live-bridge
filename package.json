@@ -1,0 +1,26 @@
+{
+  "name": "gemini-live-bridge",
+  "version": "1.0.0",
+  "description": "Bridge Gemini Live API to OpenClaw gateway with voice I/O",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "voice": "node src/index.js --voice",
+    "mock": "node src/index.js --mock",
+    "test": "node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "mic": "^2.1.2",
+    "speaker": "^0.5.2",
+    "uuid": "^9.0.0",
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["gemini", "openclaw", "voice", "bridge"],
+  "author": "",
+  "license": "MIT"
+}
