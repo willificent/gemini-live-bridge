@@ -54,6 +54,17 @@ class AudioManager {
     micInstance.start();
     console.log('✅ Microphone streaming to Gemini');
     
+    // Force resume if not flowing (some environments need it)
+    if (inputStream.readableFlowing !== true) {
+      console.log('⚡ Forcing stream resume (was not flowing)');
+      inputStream.resume();
+    }
+    console.log('📊 Stream after start/resume:', {
+      readable: inputStream.readable,
+      readableFlowing: inputStream.readableFlowing,
+      paused: inputStream.paused
+    });
+    
     return micInstance; // Return for cleanup
   }
 
