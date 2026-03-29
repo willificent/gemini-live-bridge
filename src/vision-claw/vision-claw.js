@@ -22,7 +22,7 @@ class VisionClaw {
   async startAudioSession() {
     console.log('\n🚀 Starting VisionClaw audio session...');
     
-    // Setup Gemini callbacks FIRST (before audio init)
+    // Setup Gemini callbacks FIRST
     console.log('📋 Step 1: Setting up Gemini callbacks...');
     this.geminiService.onAudioReceived = async (base64Audio) => {
       try {
@@ -44,14 +44,8 @@ class VisionClaw {
       await this.handleToolCall(toolCall);
     };
 
-    // Initialize audio components
-    console.log('📋 Step 2: Initializing audio input...');
-    await this.audioManager.initInput();
-    console.log('📋 Step 3: Initializing audio output...');
-    await this.audioManager.initOutput();
-
-    // Set up audio data handler BEFORE starting capture
-    console.log('📋 Step 4: Setting up audio data handler...');
+    // Set up audio data handler BEFORE initializing mic
+    console.log('📋 Step 2: Setting up audio data handler...');
     this.audioManager.onData = async (buffer) => {
       try {
         this.audioChunkCount++;
@@ -68,7 +62,13 @@ class VisionClaw {
       }
     };
 
-    // NOW start recording (sets isRecording = true)
+    // Initialize audio components (mic starts but isRecording is still false)
+    console.log('📋 Step 3: Initializing audio input...');
+    await this.audioManager.initInput();
+    console.log('📋 Step 4: Initializing audio output...');
+    await this.audioManager.initOutput();
+
+    // NOW start recording (sets isRecording = true) - mic is already running but data will now be captured
     console.log('📋 Step 5: Starting microphone recording...');
     await this.audioManager.startRecording();
 
