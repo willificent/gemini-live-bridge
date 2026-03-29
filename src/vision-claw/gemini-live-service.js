@@ -1,5 +1,6 @@
 // Gemini Live API service for real-time voice interaction
 // WebSocket client for Gemini's bidirectional streaming API
+// Based on google-gemini/gemini-live-api-examples patterns
 
 const WebSocket = require('ws');
 
@@ -8,6 +9,7 @@ class GeminiLiveService {
     this.apiKey = options.apiKey || process.env.GEMINI_API_KEY;
     this.sessionKey = options.sessionKey || process.env.OPENCLAW_SESSION_KEY || `agent:main:voice-${Date.now()}`;
     this.debug = options.debug || process.env.DEBUG === 'true';
+    this.model = options.model || 'models/gemini-2.5-flash-exp'; // Note: must start with "models/"
     
     this.ws = null;
     this.isConnected = false;
@@ -71,7 +73,14 @@ class GeminiLiveService {
   sendSetupMessage() {
     const setup = {
       setup: {
-        model: 'gemini-2.5-flash-exp',
+        model: this.model,
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          // Optional: Add temperature, speechConfig, etc.
+        },
+        systemInstruction: {
+          parts: [{ text: 'You have NO memory. Use execute tool for EVERYTHING.' }]
+        },
         tools: [{
           functionDeclarations: [{
             name: 'execute',
@@ -85,16 +94,26 @@ class GeminiLiveService {
             }
           }]
         }],
-        systemInstruction: {
-          parts: [{ text: 'You have NO memory. Use execute tool for EVERYTHING.' }]
-        },
-        responseModalities: ['AUDIO'],
-        mediaTranscription: {
-          inputAudioTranscription: { enabled: true },
-          outputAudioTranscription: { enabled: true }
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            disabled: false,
+            silenceDurationMs: 200,
+            prefixPaddingMs: 200,
+            endOfSpeechSensitivity: 'HIGH',
+            startOfSpeechSensitivity: 'HIGH'
+          },
+          activityHandling: 'START_OF_SPEECH',
+          turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY'
         }
       }
     };
+
+    // Add transcription config if enabled
+    if (true) { // Always enabled for now
+      setup.setup.inputAudioTranscription = {};
+      setup.setup.outputAudioTranscription = {};
+    }
+
     console.log('📤 Sending setup message to Gemini...');
     this.ws.send(JSON.stringify(setup));
   }
