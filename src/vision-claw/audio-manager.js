@@ -20,7 +20,7 @@ class AudioManager {
   async initInput() {
     return new Promise((resolve, reject) => {
       try {
-        this.inputStream = mic({
+        const micInstance = mic({
           rate: this.inputSampleRate,
           channels: this.channels,
           bitwidth: this.bitDepth,
@@ -29,13 +29,18 @@ class AudioManager {
           exitOnSilence: 0
         });
 
-        this.inputStream.on('error', reject);
-        this.inputStream.on('data', (buffer) => {
+        micInstance.on('error', (err) => {
+          console.error('Mic error:', err);
+          reject(err);
+        });
+        
+        micInstance.on('data', (buffer) => {
           if (this.onData && this.isRecording) {
             this.onData(buffer);
           }
         });
-        
+
+        this.inputStream = micInstance;
         this.inputStream.start();
         resolve();
       } catch (err) {
@@ -47,11 +52,12 @@ class AudioManager {
   async initOutput() {
     return new Promise((resolve, reject) => {
       try {
-        this.outputStream = new Speaker({
+        const speaker = new Speaker({
           channels: this.channels,
           bitDepth: this.bitDepth,
           sampleRate: this.outputSampleRate
         });
+        this.outputStream = speaker;
         resolve();
       } catch (err) {
         reject(err);
