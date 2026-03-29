@@ -71,7 +71,7 @@ class GeminiLiveService {
   sendSetupMessage() {
     const setup = {
       setup: {
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash-exp',
         tools: [{
           functionDeclarations: [{
             name: 'execute',
