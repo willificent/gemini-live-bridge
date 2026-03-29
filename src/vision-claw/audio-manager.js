@@ -21,6 +21,7 @@ class AudioManager {
   async initInput() {
     return new Promise((resolve, reject) => {
       try {
+        console.log('🎤 Initializing microphone input...');
         this.micInstance = mic({
           rate: this.inputSampleRate,
           channels: this.channels,
@@ -30,11 +31,11 @@ class AudioManager {
           exitOnSilence: 0
         });
 
-        // Get the actual audio stream from mic
+        console.log('🎤 Mic instance created, getting audio stream...');
         this.inputStream = this.micInstance.getAudioStream();
         
         this.inputStream.on('error', (err) => {
-          console.error('Audio stream error:', err);
+          console.error('❌ Audio stream error:', err);
           reject(err);
         });
         
@@ -44,9 +45,12 @@ class AudioManager {
           }
         });
 
+        console.log('🎤 Starting mic instance...');
         this.micInstance.start();
+        console.log('✅ Microphone started successfully');
         resolve();
       } catch (err) {
+        console.error('❌ Failed to initialize microphone:', err);
         reject(err);
       }
     });
@@ -55,13 +59,19 @@ class AudioManager {
   async initOutput() {
     return new Promise((resolve, reject) => {
       try {
+        console.log('🔊 Initializing speaker output...');
         this.outputStream = new speaker({
           channels: this.channels,
           bitDepth: this.bitDepth,
           sampleRate: this.outputSampleRate
         });
+        this.outputStream.on('error', (err) => {
+          console.error('❌ Speaker error:', err);
+        });
+        console.log('✅ Speaker initialized');
         resolve();
       } catch (err) {
+        console.error('❌ Failed to initialize speaker:', err);
         reject(err);
       }
     });
@@ -72,10 +82,12 @@ class AudioManager {
       await this.initInput();
     }
     this.isRecording = true;
+    console.log('🎤 Microphone recording STARTED');
   }
 
   async stopRecording() {
     this.isRecording = false;
+    console.log('🛑 Microphone recording STOPPED');
   }
 
   async playAudio(audioData) {
@@ -83,10 +95,10 @@ class AudioManager {
       await this.initOutput();
     }
     try {
-      // Audio data should be Buffer containing PCM audio
+      console.log(`🔊 Playing audio chunk (${audioData.length} bytes)`);
       this.outputStream.write(audioData);
     } catch (err) {
-      console.error('Audio playback error:', err);
+      console.error('❌ Audio playback error:', err);
     }
   }
 
