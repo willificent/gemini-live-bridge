@@ -9,7 +9,7 @@ class GeminiLiveService {
     this.apiKey = options.apiKey || process.env.GEMINI_API_KEY;
     this.sessionKey = options.sessionKey || process.env.OPENCLAW_SESSION_KEY || `agent:main:voice-${Date.now()}`;
     this.debug = options.debug || process.env.DEBUG === 'true';
-    this.model = options.model || 'models/gemini-2.5-flash-exp'; // Note: must start with "models/"
+    this.model = options.model || 'models/gemini-3.1-flash-live-preview'; // Official Live API model
     
     this.ws = null;
     this.isConnected = false;
