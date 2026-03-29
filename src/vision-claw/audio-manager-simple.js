@@ -16,6 +16,7 @@ class AudioManager {
     this.outputStream = null;
     this.isRecording = false;
     this.onData = null;
+    this.chunkCount = 0;
   }
 
   async initInput() {
@@ -36,7 +37,12 @@ class AudioManager {
         this.inputStream.on('error', reject);
         
         this.inputStream.on('data', (buffer) => {
+          console.log(`📥 RAW mic data (isRecording=${this.isRecording}, size=${buffer.length})`);
           if (this.onData && this.isRecording) {
+            this.chunkCount++;
+            if (this.chunkCount <= 5 || this.chunkCount % 30 === 0) {
+              console.log(`🎵 Mic chunk #${this.chunkCount} (${buffer.length} bytes)`);
+            }
             this.onData(buffer);
           }
         });
@@ -72,7 +78,8 @@ class AudioManager {
       await this.initInput();
     }
     this.isRecording = true;
-    console.log('🎤 Recording started');
+    this.chunkCount = 0;
+    console.log('🎤 Recording started (isRecording=true)');
   }
 
   async stopRecording() {
@@ -85,6 +92,7 @@ class AudioManager {
       await this.initOutput();
     }
     try {
+      console.log(`🔊 Playing audio (${audioData.length} bytes)`);
       this.outputStream.write(audioData);
     } catch (err) {
       console.error('Playback error:', err);
