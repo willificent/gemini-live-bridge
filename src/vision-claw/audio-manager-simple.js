@@ -31,7 +31,7 @@ class AudioManager {
     });
 
     inputStream.on('data', (buffer) => {
-      console.log(`🎵 Mic chunk (${buffer.length} bytes) [flag:${this.session ? 'session' : 'no-session'}]`);
+      console.log(`🎵 Mic chunk (${buffer.length}) [session:${!!this.session}]`);
       // Send directly to Gemini
       if (this.session) {
         this.session.sendRealtimeInput({
@@ -51,25 +51,7 @@ class AudioManager {
       console.error('Microphone stream error:', err);
     });
 
-    micInstance.on('error', (err) => {
-      console.error('Mic instance error:', err);
-    });
-
-    console.log('▶️ Starting mic instance...');
     micInstance.start();
-    
-    console.log('📊 Stream state after start:', {
-      readable: inputStream.readable,
-      readableFlowing: inputStream.readableFlowing,
-      paused: inputStream.paused
-    });
-
-    // If still not flowing, force it
-    if (!inputStream.readableFlowing) {
-      console.log('⚡ Forcing stream to resume...');
-      inputStream.resume();
-    }
-
     console.log('✅ Microphone streaming to Gemini');
     
     return micInstance; // Return for cleanup
