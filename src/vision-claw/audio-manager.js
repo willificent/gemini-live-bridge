@@ -2,7 +2,7 @@
 // Based on VisionClaw patterns but simplified for Node.js
 
 const mic = require('mic');
-const { Speaker } = require('speaker');
+const speaker = require('speaker');
 
 class AudioManager {
   constructor(options = {}) {
@@ -55,7 +55,7 @@ class AudioManager {
   async initOutput() {
     return new Promise((resolve, reject) => {
       try {
-        this.outputStream = new Speaker({
+        this.outputStream = new speaker({
           channels: this.channels,
           bitDepth: this.bitDepth,
           sampleRate: this.outputSampleRate
