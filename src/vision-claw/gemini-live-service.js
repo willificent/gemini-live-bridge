@@ -115,6 +115,9 @@ class GeminiLiveService {
     }
 
     console.log('📤 Sending setup message to Gemini...');
+    if (this.debug) {
+      console.log('Setup payload:', JSON.stringify(setup, null, 2));
+    }
     this.ws.send(JSON.stringify(setup));
   }
 
