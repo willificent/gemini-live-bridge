@@ -1,48 +1,104 @@
-// src/audio-capture.js
-// Cross-platform microphone capture using 'speaker' and 'mic' packages
-// Windows: install windows-build-tools if native compilation fails
+// Audio pipeline integration - connects AudioManager to Gemini Live API
+// This is the main handler for audio streaming
 
-const mic = require('mic'); // npm install mic
+const { AudioManager } = require('./vision-claw/audio-manager');
+const { GeminiLiveService } = require('./vision-claw/gemini-live-service');
+const { OpenClawBridge } = require('./vision-claw/openclaw-bridge');
 
 class AudioCapture {
-  constructor(options = {}) {
-    this.sampleRate = options.sampleRate || 16000;
-    this.channels = options.channels || 1;
-    this.bitDepth = options.bitDepth || 16;
-    this.instance = null;
-    this.onData = null;
+  constructor(config = {}) {
+    this.audioManager = new AudioManager(config.audio);
+    this.geminiClient = new GeminiLiveService(config.gemini);
+    this.openClawBridge = new OpenClawBridge(config.openclaw);
+    
+    this.isRunning = false;
+    this.onTranscript = null;
+    this.onToolCall = null;
   }
 
-  async init() {
-    return new Promise((resolve, reject) => {
-      try {
-        this.instance = mic({
-          rate: this.sampleRate,
-          channels: this.channels,
-          bitwidth: this.bitDepth,
-          encoding: 'signed-integer',
-          device: process.env.AUDIO_INPUT_DEVICE || undefined,
-          exitOnSilence: 0
-        });
-
-        this.instance.on('error', (err) => reject(err));
-        this.instance.on('data', (buffer) => {
-          if (this.onData) this.onData(buffer);
-        });
-        this.instance.start();
-        resolve();
-      } catch (err) {
-        reject(err);
+  async initialize() {
+    await this.audioManager.initInput();
+    await this.audioManager.initOutput();
+    
+    // Connect Gemini client with tool call handler
+    this.geminiClient.onToolCall = async (toolCall) => {
+      console.log('🔧 Tool call received:', toolCall);
+      if (this.onToolCall) {
+        await this.onToolCall(toolCall);
+      } else {
+        await this.handleDefaultToolCall(toolCall);
       }
-    });
+    };
+
+    this.geminiClient.onTextReceived = (text) => {
+      if (this.onTranscript) {
+        this.onTranscript(text);
+      }
+    };
   }
 
-  start() {
-    if (this.instance && this.instance.start) this.instance.start();
+  async start() {
+    if (this.isRunning) return;
+
+    // Connect to Gemini
+    await this.geminiClient.connect();
+
+    // Start audio capture and stream to Gemini
+    this.audioManager.onData = async (buffer) => {
+      try {
+        const base64Audio = buffer.toString('base64');
+        await this.geminiClient.sendAudio(base64Audio);
+      } catch (err) {
+        console.error('Failed to send audio to Gemini:', err);
+      }
+    };
+
+    await this.audioManager.startRecording();
+    this.isRunning = true;
+    console.log('🎤 Audio capture started');
   }
 
-  stop() {
-    if (this.instance && this.instance.stop) this.instance.stop();
+  async stop() {
+    if (!this.isRunning) return;
+    
+    await this.audioManager.stopRecording();
+    this.geminiClient.disconnect();
+    this.isRunning = false;
+    console.log('🛑 Audio capture stopped');
+  }
+
+  async handleDefaultToolCall(toolCall) {
+    for (const call of toolCall.functionCalls) {
+      if (call.name === 'execute') {
+        const task = call.args?.task || JSON.stringify(call.args);
+        try {
+          console.log(`🔨 Executing task: ${task.substring(0, 100)}...`);
+          const result = await this.openClawBridge.executeTask(task);
+          
+          this.geminiClient.sendToolResponse({
+            functionResponses: [{
+              id: call.id,
+              name: call.name,
+              response: { result }
+            }]
+          });
+        } catch (err) {
+          console.error('Task execution failed:', err);
+          this.geminiClient.sendToolResponse({
+            functionResponses: [{
+              id: call.id,
+              name: call.name,
+              response: { result: `Error: ${err.message}` }
+            }]
+          });
+        }
+      }
+    }
+  }
+
+  cleanup() {
+    this.audioManager.cleanup();
+    this.geminiClient.disconnect();
   }
 }
 
