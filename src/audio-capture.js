@@ -46,6 +46,12 @@ class AudioCapture {
     // Start audio capture and stream to Gemini
     this.audioManager.onData = async (buffer) => {
       try {
+        // Log first few chunks every time
+        if (this.audioDataCount === undefined) this.audioDataCount = 0;
+        this.audioDataCount++;
+        if (this.audioDataCount <= 5 || this.audioDataCount % 30 === 0) {
+          console.log(`🎵 Audio chunk #${this.audioDataCount} (size: ${buffer.length} bytes)`);
+        }
         const base64Audio = buffer.toString('base64');
         await this.geminiClient.sendAudio(base64Audio);
       } catch (err) {

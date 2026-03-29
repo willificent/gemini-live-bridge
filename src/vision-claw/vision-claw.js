@@ -26,15 +26,17 @@ class VisionClaw {
     // Setup Gemini callbacks
     this.geminiService.onAudioReceived = async (base64Audio) => {
       try {
+        console.log(`🔊 Received audio response (${base64Audio.length} chars base64)`);
         const audioBuffer = Buffer.from(base64Audio, 'base64');
         await this.audioManager.playAudio(audioBuffer);
+        console.log('✅ Audio playback complete');
       } catch (err) {
         console.error('Audio playback failed:', err);
       }
     };
 
     this.geminiService.onTextReceived = (text) => {
-      console.log('\n🤖 Gemini:', text);
+      console.log('\n🤖 Gemini text response:', text);
     };
 
     this.geminiService.onToolCall = async (toolCall) => {
