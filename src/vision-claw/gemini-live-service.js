@@ -94,17 +94,7 @@ class GeminiLiveService {
             }
           }]
         }],
-        realtimeInputConfig: {
-          automaticActivityDetection: {
-            disabled: false,
-            silenceDurationMs: 200,
-            prefixPaddingMs: 200,
-            endOfSpeechSensitivity: 'END_OF_SPEECH_SENSITIVITY_HIGH',
-            startOfSpeechSensitivity: 'START_OF_SPEECH_SENSITIVITY_HIGH'
-          },
-          activityHandling: 'START_OF_SPEECH',
-          turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY'
-        }
+        realtimeInputConfig: {}
       }
     };
 
