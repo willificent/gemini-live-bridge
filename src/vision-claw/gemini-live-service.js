@@ -12,6 +12,7 @@ class GeminiLiveService {
     this.ws = null;
     this.isConnected = false;
     this.audioEnabled = false;
+    this.setupComplete = false;
     
     this.onAudioReceived = null;
     this.onTextReceived = null;
@@ -29,10 +30,12 @@ class GeminiLiveService {
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
     
     return new Promise((resolve, reject) => {
+      console.log('Connecting to:', wsUrl.replace(/\?key=.*$/, '?key=***REDACTED***'));
+
       this.ws = new WebSocket(wsUrl);
 
       this.ws.on('open', () => {
-        console.log('✅ Connected to Gemini Live API');
+        console.log('✅ WebSocket connected');
         this.isConnected = true;
         this.sendSetupMessage();
         resolve();
@@ -53,11 +56,13 @@ class GeminiLiveService {
       this.ws.on('error', (err) => {
         console.error('WebSocket error:', err);
         if (this.onError) this.onError(err);
+        reject(err);
       });
 
-      this.ws.on('close', () => {
-        console.log('WebSocket closed');
+      this.ws.on('close', (code, reason) => {
+        console.log(`WebSocket closed (code: ${code}, reason: ${reason?.toString() || 'none'})`);
         this.isConnected = false;
+        this.setupComplete = false;
         if (this.onClose) this.onClose();
       });
     });
@@ -90,6 +95,7 @@ class GeminiLiveService {
         }
       }
     };
+    console.log('📤 Sending setup message to Gemini...');
     this.ws.send(JSON.stringify(setup));
   }
 
@@ -97,7 +103,13 @@ class GeminiLiveService {
     if (msg.setupComplete) {
       console.log('✅ Setup complete. Audio session ready.');
       this.audioEnabled = true;
+      this.setupComplete = true;
       if (this.onSetupComplete) this.onSetupComplete();
+      return;
+    }
+
+    if (msg.error) {
+      console.error('❌ Gemini API error:', msg.error);
       return;
     }
 
@@ -149,6 +161,7 @@ class GeminiLiveService {
       this.ws = null;
     }
     this.isConnected = false;
+    this.setupComplete = false;
   }
 }
 
