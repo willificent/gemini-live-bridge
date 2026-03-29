@@ -39,7 +39,9 @@ class AudioManager {
           reject(err);
         });
         
+        // Log ALL data events, even if isRecording is false (debug)
         this.inputStream.on('data', (buffer) => {
+          console.log(`📥 Raw audio event (${buffer.length} bytes) [isRecording=${this.isRecording}]`);
           if (this.onData && this.isRecording) {
             this.onData(buffer);
           }
@@ -82,7 +84,7 @@ class AudioManager {
       await this.initInput();
     }
     this.isRecording = true;
-    console.log('🎤 Microphone recording STARTED');
+    console.log('🎤 Microphone recording STARTED (isRecording=true)');
   }
 
   async stopRecording() {
