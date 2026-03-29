@@ -34,6 +34,12 @@ class AudioManager {
         console.log('🎤 Mic instance created, getting audio stream...');
         this.inputStream = this.micInstance.getAudioStream();
         
+        console.log('🔧 Stream properties:', {
+          readable: this.inputStream.readable,
+          readableFlowing: this.inputStream.readableFlowing,
+          destroyed: this.inputStream.destroyed
+        });
+
         this.inputStream.on('error', (err) => {
           console.error('❌ Audio stream error:', err);
           reject(err);
@@ -49,7 +55,14 @@ class AudioManager {
 
         console.log('🎤 Starting mic instance...');
         this.micInstance.start();
-        console.log('✅ Microphone started successfully');
+        
+        // Ensure stream is flowing
+        if (this.inputStream.readableFlowing !== true) {
+          console.log('⚡ Resuming input stream...');
+          this.inputStream.resume();
+        }
+        
+        console.log('✅ Microphone started successfully (flowing:', this.inputStream.readableFlowing, ')');
         resolve();
       } catch (err) {
         console.error('❌ Failed to initialize microphone:', err);
