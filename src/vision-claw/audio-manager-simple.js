@@ -1,68 +1,59 @@
 // Simplified AudioManager for use with @google/genai SDK
-// Uses mic/speaker packages but manages stream flow properly
+// Exactly matches the pattern from official example
 
 const mic = require('mic');
 const speaker = require('speaker');
 
 class AudioManager {
-  constructor(options = {}) {
-    this.inputSampleRate = options.inputSampleRate || 16000;
-    this.outputSampleRate = options.outputSampleRate || 24000;
-    this.channels = options.channels || 1;
-    this.bitDepth = options.bitDepth || 16;
-    
-    this.micInstance = null;
-    this.inputStream = null;
+  constructor(options = {}, geminiSession) {
+    this.session = geminiSession;
     this.outputStream = null;
-    this.isRecording = false;
-    this.onData = null;
-    this.chunkCount = 0;
   }
 
-  async initInput() {
-    return new Promise((resolve, reject) => {
-      try {
-        console.log('🎤 Setting up microphone...');
-        this.micInstance = mic({
-          rate: this.inputSampleRate,
-          channels: this.channels,
-          bitwidth: this.bitDepth,
-          encoding: 'signed-integer',
-          device: process.env.AUDIO_INPUT_DEVICE || undefined,
-          exitOnSilence: 0
-        });
-
-        this.inputStream = this.micInstance.getAudioStream();
-        
-        this.inputStream.on('error', reject);
-        
-        this.inputStream.on('data', (buffer) => {
-          console.log(`📥 RAW mic data (isRecording=${this.isRecording}, size=${buffer.length})`);
-          if (this.onData && this.isRecording) {
-            this.chunkCount++;
-            if (this.chunkCount <= 5 || this.chunkCount % 30 === 0) {
-              console.log(`🎵 Mic chunk #${this.chunkCount} (${buffer.length} bytes)`);
-            }
-            this.onData(buffer);
-          }
-        });
-
-        this.micInstance.start();
-        console.log('✅ Microphone ready');
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
+  async startInput(sampleRate = 16000) {
+    console.log('🎤 Setting up microphone...');
+    
+    const micInstance = mic({
+      rate: sampleRate,
+      channels: 1,
+      bitwidth: 16,
+      encoding: 'signed-integer',
+      device: process.env.AUDIO_INPUT_DEVICE || undefined,
+      exitOnSilence: 0
     });
+
+    const inputStream = micInstance.getAudioStream();
+    
+    inputStream.on('data', (buffer) => {
+      console.log(`🎵 Mic chunk (${buffer.length} bytes)`);
+      // Send directly to Gemini
+      this.session.sendRealtimeInput({
+        audio: {
+          data: buffer.toString('base64'),
+          mimeType: `audio/pcm;rate=${sampleRate}`
+        }
+      }).catch(err => {
+        console.error('Failed to send audio to Gemini:', err.message);
+      });
+    });
+
+    inputStream.on('error', (err) => {
+      console.error('Microphone error:', err);
+    });
+
+    micInstance.start();
+    console.log('✅ Microphone streaming to Gemini');
+    
+    return micInstance; // Return for cleanup
   }
 
   async initOutput() {
     return new Promise((resolve, reject) => {
       try {
         this.outputStream = new speaker({
-          channels: this.channels,
-          bitDepth: this.bitDepth,
-          sampleRate: this.outputSampleRate
+          channels: 1,
+          bitDepth: 16,
+          sampleRate: 24000
         });
         this.outputStream.on('error', console.error);
         console.log('✅ Speaker ready');
@@ -71,20 +62,6 @@ class AudioManager {
         reject(err);
       }
     });
-  }
-
-  async startRecording() {
-    if (!this.inputStream) {
-      await this.initInput();
-    }
-    this.isRecording = true;
-    this.chunkCount = 0;
-    console.log('🎤 Recording started (isRecording=true)');
-  }
-
-  async stopRecording() {
-    this.isRecording = false;
-    console.log('🛑 Recording stopped');
   }
 
   async playAudio(audioData) {
@@ -99,13 +76,14 @@ class AudioManager {
     }
   }
 
-  cleanup() {
-    if (this.micInstance) {
-      this.micInstance.stop();
-      this.micInstance = null;
+  cleanup(micInstance) {
+    if (micInstance) {
+      micInstance.stop();
     }
-    this.inputStream = null;
-    this.outputStream = null;
+    if (this.outputStream) {
+      this.outputStream.end();
+      this.outputStream = null;
+    }
   }
 }
 

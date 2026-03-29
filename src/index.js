@@ -1,8 +1,9 @@
 // Gemini Live Bridge using official @google/genai SDK
-// This is a simplified, production-ready implementation
+// Simplified approach exactly matching official example
 
 require('dotenv').config();
 const { GoogleGenAI } = require('@google/genai');
+const { AudioManager } = require('./vision-claw/audio-manager-simple');
 
 class GeminiLiveBridge {
   constructor() {
@@ -13,38 +14,28 @@ class GeminiLiveBridge {
     
     this.ai = new GoogleGenAI({ apiKey: this.apiKey });
     this.session = null;
+    this.micInstance = null;
     this.audioManager = null;
     this.isRunning = false;
     
-    this.onAudioReceived = null;
-    this.onTextReceived = null;
-    this.onToolCall = null;
-    this.onError = null;
-    this.onClose = null;
+    this.messageQueue = [];
+    this.audioQueue = [];
+    this.speaker = null;
   }
 
-  async initializeAudio() {
-    // Dynamically import audio dependencies only when needed
-    const { AudioManager } = require('./vision-claw/audio-manager-simple');
-    this.audioManager = new AudioManager({
-      inputSampleRate: 16000,
-      outputSampleRate: 24000,
-      channels: 1,
-      bitDepth: 16
-    });
-    
-    await this.audioManager.initInput();
-    await this.audioManager.initOutput();
-    console.log('✅ Audio system initialized');
-  }
-
-  async connect() {
+  async start() {
     if (!this.apiKey) {
       throw new Error('GEMINI_API_KEY is required');
     }
 
+    console.log('🤖 Starting Gemini Live Bridge...\n');
+
+    // Initialize audio output manager (for playback)
+    this.audioManager = new AudioManager({}, this);
+    await this.audioManager.initOutput();
+
+    // Connect to Gemini
     console.log('🔌 Connecting to Gemini Live API...');
-    
     this.session = await this.ai.live.connect({
       model: 'gemini-3.1-flash-live-preview',
       config: {
@@ -68,60 +59,59 @@ class GeminiLiveBridge {
       },
       callbacks: {
         onopen: () => {
-          console.log('✅ Gemini Live session opened');
+          console.log('✅ Gemini session opened');
         },
         onmessage: async (message) => {
           await this.handleMessage(message);
         },
         onerror: (error) => {
-          console.error('❌ Gemini session error:', error);
-          if (this.onError) this.onError(error);
+          console.error('❌ Gemini error:', error);
         },
         onclose: () => {
           console.log('🔌 Gemini session closed');
-          if (this.onClose) this.onClose();
         }
       }
     });
 
-    return this.session;
+    // Setup playback loop (process audio from Gemini)
+    this.startPlaybackLoop();
+
+    // Setup microphone (sends audio directly to Gemini)
+    this.micInstance = await this.audioManager.startInput(16000);
+
+    this.isRunning = true;
+    console.log('\n✅ Bridge fully operational');
+    console.log('🎤 Microphone active – speak now! (Ctrl+C to quit)\n');
   }
 
   async handleMessage(message) {
+    // Check for setup complete
     if (message.setupComplete) {
-      console.log('✅ Setup complete - audio session ready');
+      console.log('✅ Setup complete – ready for voice');
       return;
     }
 
+    // Check for tool calls
     if (message.toolCall) {
-      console.log('🔧 Tool call received:', message.toolCall);
-      if (this.onToolCall) {
-        await this.onToolCall(message.toolCall);
-      } else {
-        await this.handleDefaultToolCall(message.toolCall);
-      }
+      console.log('🔧 Tool call received:', JSON.stringify(message.toolCall, null, 2));
+      await this.handleToolCall(message.toolCall);
       return;
     }
 
-    // Handle audio response
-    if (message.data?.serverContent?.modelTurn?.parts) {
-      const parts = message.data.serverContent.modelTurn.parts;
-      for (const part of parts) {
+    // Queue audio responses for playback
+    if (message.serverContent?.modelTurn?.parts) {
+      for (const part of message.serverContent.modelTurn.parts) {
         if (part.inlineData?.data) {
-          if (this.onAudioReceived) {
-            this.onAudioReceived(part.inlineData.data);
-          }
+          this.audioQueue.push(Buffer.from(part.inlineData.data, 'base64'));
         }
         if (part.text) {
-          if (this.onTextReceived) {
-            this.onTextReceived(part.text);
-          }
+          console.log(`💬 Gemini: ${part.text}`);
         }
       }
     }
   }
 
-  async handleDefaultToolCall(toolCall) {
+  async handleToolCall(toolCall) {
     for (const call of toolCall.functionCalls) {
       if (call.name === 'execute') {
         const task = call.args?.task || JSON.stringify(call.args);
@@ -176,52 +166,59 @@ class GeminiLiveBridge {
     return data.choices?.[0]?.message?.content || 'No response';
   }
 
-  async startAudioStream() {
-    if (!this.audioManager) {
-      await this.initializeAudio();
-    }
-
-    // Set up audio output callback
-    this.onAudioReceived = async (base64Audio) => {
-      try {
-        const audioBuffer = Buffer.from(base64Audio, 'base64');
-        await this.audioManager.playAudio(audioBuffer);
-      } catch (err) {
-        console.error('Audio playback error:', err);
+  startPlaybackLoop() {
+    // Consume audio queue and play through speaker
+    (async () => {
+      while (this.isRunning) {
+        if (this.audioQueue.length === 0) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          continue;
+        }
+        
+        const chunk = this.audioQueue.shift();
+        try {
+          await this.audioManager.playAudio(chunk);
+        } catch (err) {
+          console.error('Playback error:', err);
+        }
       }
-    };
-
-    // Start microphone and stream to Gemini
-    this.audioManager.onData = async (buffer) => {
-      try {
-        const base64Audio = buffer.toString('base64');
-        await this.session.sendRealtimeInput({
-          audio: {
-            data: base64Audio,
-            mimeType: 'audio/pcm;rate=16000'
-          }
-        });
-      } catch (err) {
-        console.error('Failed to send audio:', err);
-      }
-    };
-
-    await this.audioManager.startRecording();
-    console.log('🎤 Audio streaming started');
+    })();
   }
 
   async stop() {
-    if (this.audioManager) {
-      await this.audioManager.stopRecording();
-      this.audioManager.cleanup();
+    this.isRunning = false;
+    if (this.micInstance) {
+      this.micInstance.stop();
+      this.micInstance = null;
     }
     if (this.session) {
       this.session.close();
     }
-    this.isRunning = false;
-    console.log('✅ Session stopped');
+    if (this.audioManager) {
+      if (this.audioManager.outputStream) {
+        this.audioManager.outputStream.end();
+      }
+    }
+    console.log('✅ Bridge stopped');
   }
 }
 
-// Export for use in test script
+// Export and also allow direct run
+if (require.main === module) {
+  runLive().catch(console.error);
+}
+
 module.exports = { GeminiLiveBridge };
+
+async function runLive() {
+  const bridge = new GeminiLiveBridge();
+  
+  // Handle Ctrl+C
+  process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down...');
+    await bridge.stop();
+    process.exit(0);
+  });
+
+  await bridge.start();
+}
