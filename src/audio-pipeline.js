@@ -1,57 +1,57 @@
-// Main audio pipeline that orchestrates all components
-// Entry point for the VisionClaw bridge functionality
+// Simple mic → Gemini streaming, exactly matching test-mic.js pattern
+// No classes, just functions that capture and pipe audio
 
-const { AudioCapture } = require('./audio-capture');
+const mic = require('mic');
 
 class AudioPipeline {
-  constructor(config = {}) {
-    this.audioCapture = new AudioCapture(config);
-    this.isRunning = false;
-    this.onTranscript = config.onTranscript || null;
-    this.onError = config.onError || null;
+  constructor() {
+    this.micInstance = null;
+    this.stream = null;
+    this.onChunk = null;  // called with Buffer
+    this.isActive = false;
   }
 
-  async initialize() {
-    try {
-      await this.audioCapture.initialize();
-      this.audioCapture.onTranscript = this.onTranscript;
-      return true;
-    } catch (err) {
-      console.error('Failed to initialize audio pipeline:', err);
-      if (this.onError) this.onError(err);
-      return false;
-    }
-  }
+  start(onChunk) {
+    if (this.isActive) return;
+    this.onChunk = onChunk;
 
-  async start() {
-    if (this.isRunning) return;
+    console.log('🎤 Initializing microphone...');
     
-    try {
-      await this.audioCapture.start();
-      this.isRunning = true;
-      console.log('✅ Audio pipeline started');
-    } catch (err) {
-      console.error('Failed to start audio pipeline:', err);
-      if (this.onError) this.onError(err);
-      throw err;
-    }
+    this.micInstance = mic({
+      rate: 16000,
+      channels: 1,
+      bitwidth: 16,
+      encoding: 'signed-integer',
+      exitOnSilence: 0
+    });
+
+    this.stream = this.micInstance.getAudioStream();
+
+    // Attach BEFORE starting
+    this.stream.on('data', (buffer) => {
+      if (this.onChunk) {
+        this.onChunk(buffer);
+      }
+    });
+
+    this.stream.on('error', (err) => {
+      console.error('Mic stream error:', err);
+    });
+
+    this.micInstance.start();
+    this.isActive = true;
+    console.log('✅ Microphone active');
   }
 
-  async stop() {
-    if (!this.isRunning) return;
-    
-    try {
-      await this.audioCapture.stop();
-      this.isRunning = false;
-      console.log('✅ Audio pipeline stopped');
-    } catch (err) {
-      console.error('Failed to stop audio pipeline:', err);
-      if (this.onError) this.onError(err);
+  stop() {
+    if (!this.isActive) return;
+    if (this.micInstance) {
+      this.micInstance.stop();
+      this.micInstance = null;
     }
-  }
-
-  async cleanup() {
-    this.audioCapture.cleanup();
+    this.stream = null;
+    this.isActive = false;
+    console.log('🛑 Microphone stopped');
   }
 }
 
