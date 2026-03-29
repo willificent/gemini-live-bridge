@@ -30,11 +30,7 @@ class GeminiLiveBridge {
 
     console.log('🤖 Starting Gemini Live Bridge...\n');
 
-    // Initialize audio output manager (for playback)
-    this.audioManager = new AudioManager({}, this);
-    await this.audioManager.initOutput();
-
-    // Connect to Gemini
+    // Connect to Gemini first
     console.log('🔌 Connecting to Gemini Live API...');
     this.session = await this.ai.live.connect({
       model: 'gemini-3.1-flash-live-preview',
@@ -72,6 +68,10 @@ class GeminiLiveBridge {
         }
       }
     });
+
+    // Initialize audio output manager (for playback) with the actual session
+    this.audioManager = new AudioManager({}, this.session);
+    await this.audioManager.initOutput();
 
     // Setup playback loop (process audio from Gemini)
     this.startPlaybackLoop();
