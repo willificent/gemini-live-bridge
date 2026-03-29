@@ -22,14 +22,8 @@ class VisionClaw {
   async startAudioSession() {
     console.log('\n🚀 Starting VisionClaw audio session...');
     
-    // Initialize components
-    console.log('📋 Step 1: Initializing audio input...');
-    await this.audioManager.initInput();
-    console.log('📋 Step 2: Initializing audio output...');
-    await this.audioManager.initOutput();
-
-    // Setup Gemini callbacks
-    console.log('📋 Step 3: Setting up Gemini callbacks...');
+    // Setup Gemini callbacks FIRST (before audio init)
+    console.log('📋 Step 1: Setting up Gemini callbacks...');
     this.geminiService.onAudioReceived = async (base64Audio) => {
       try {
         console.log(`🔊 Gemini responded with audio (${base64Audio.length} chars base64)`);
@@ -50,7 +44,13 @@ class VisionClaw {
       await this.handleToolCall(toolCall);
     };
 
-    // Start audio streaming to Gemini
+    // Initialize audio components
+    console.log('📋 Step 2: Initializing audio input...');
+    await this.audioManager.initInput();
+    console.log('📋 Step 3: Initializing audio output...');
+    await this.audioManager.initOutput();
+
+    // Set up audio data handler BEFORE starting capture
     console.log('📋 Step 4: Setting up audio data handler...');
     this.audioManager.onData = async (buffer) => {
       try {
@@ -68,8 +68,12 @@ class VisionClaw {
       }
     };
 
+    // NOW start recording (sets isRecording = true)
+    console.log('📋 Step 5: Starting microphone recording...');
+    await this.audioManager.startRecording();
+
     // Connect to Gemini
-    console.log('📋 Step 5: Connecting to Gemini...');
+    console.log('📋 Step 6: Connecting to Gemini...');
     await this.geminiService.connect();
     this.isRunning = true;
     console.log('\n✅ VisionClaw audio session FULLY STARTED');
