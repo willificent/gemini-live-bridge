@@ -53,16 +53,23 @@ class AudioManager {
           }
         });
 
+        // Check listener count
+        console.log('📊 Data listeners attached:', this.inputStream.listenerCount('data'));
+        
         console.log('🎤 Starting mic instance...');
         this.micInstance.start();
         
+        // Check flow state after start
+        console.log('📊 Stream readableFlowing after start:', this.inputStream.readableFlowing);
+        
         // Ensure stream is flowing
         if (this.inputStream.readableFlowing !== true) {
-          console.log('⚡ Resuming input stream...');
+          console.log('⚡ Resuming input stream (was not flowing)...');
           this.inputStream.resume();
+          console.log('📊 Stream readableFlowing after resume:', this.inputStream.readableFlowing);
         }
         
-        console.log('✅ Microphone started successfully (flowing:', this.inputStream.readableFlowing, ')');
+        console.log('✅ Microphone started successfully');
         resolve();
       } catch (err) {
         console.error('❌ Failed to initialize microphone:', err);
