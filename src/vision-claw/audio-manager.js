@@ -11,6 +11,7 @@ class AudioManager {
     this.channels = options.channels || 1;
     this.bitDepth = options.bitDepth || 16;
     
+    this.micInstance = null;
     this.inputStream = null;
     this.outputStream = null;
     this.isRecording = false;
@@ -20,7 +21,7 @@ class AudioManager {
   async initInput() {
     return new Promise((resolve, reject) => {
       try {
-        const micInstance = mic({
+        this.micInstance = mic({
           rate: this.inputSampleRate,
           channels: this.channels,
           bitwidth: this.bitDepth,
@@ -29,19 +30,21 @@ class AudioManager {
           exitOnSilence: 0
         });
 
-        micInstance.on('error', (err) => {
-          console.error('Mic error:', err);
+        // Get the actual audio stream from mic
+        this.inputStream = this.micInstance.getAudioStream();
+        
+        this.inputStream.on('error', (err) => {
+          console.error('Audio stream error:', err);
           reject(err);
         });
         
-        micInstance.on('data', (buffer) => {
+        this.inputStream.on('data', (buffer) => {
           if (this.onData && this.isRecording) {
             this.onData(buffer);
           }
         });
 
-        this.inputStream = micInstance;
-        this.inputStream.start();
+        this.micInstance.start();
         resolve();
       } catch (err) {
         reject(err);
@@ -52,12 +55,11 @@ class AudioManager {
   async initOutput() {
     return new Promise((resolve, reject) => {
       try {
-        const speaker = new Speaker({
+        this.outputStream = new Speaker({
           channels: this.channels,
           bitDepth: this.bitDepth,
           sampleRate: this.outputSampleRate
         });
-        this.outputStream = speaker;
         resolve();
       } catch (err) {
         reject(err);
@@ -89,10 +91,11 @@ class AudioManager {
   }
 
   cleanup() {
-    if (this.inputStream) {
-      this.inputStream.stop();
-      this.inputStream = null;
+    if (this.micInstance) {
+      this.micInstance.stop();
+      this.micInstance = null;
     }
+    this.inputStream = null;
     if (this.outputStream) {
       this.outputStream = null;
     }
